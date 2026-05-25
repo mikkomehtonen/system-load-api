@@ -1,6 +1,9 @@
 package collectors
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestCollectDisk(t *testing.T) {
 	if testing.Short() {
@@ -22,6 +25,9 @@ func TestCollectDisk(t *testing.T) {
 	for i, p := range stats.Partitions {
 		if p.Device == "" {
 			t.Errorf("Partitions[%d].Device is empty", i)
+		}
+		if strings.HasPrefix(p.Device, "/dev/loop") {
+			t.Errorf("Partitions[%d].Device = %q, want no /dev/loop* devices", i, p.Device)
 		}
 		if p.TotalGB < 0 {
 			t.Errorf("Partitions[%d].TotalGB = %v, want >= 0", i, p.TotalGB)

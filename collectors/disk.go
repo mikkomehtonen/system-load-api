@@ -4,6 +4,8 @@ import (
 	"sysload/models"
 	"time"
 
+	"strings"
+
 	"github.com/shirou/gopsutil/v3/disk"
 )
 
@@ -16,6 +18,9 @@ func CollectDisk() (*models.DiskStats, error) {
 
 	var parts []models.DiskPartition
 	for _, p := range partitions {
+		if strings.HasPrefix(p.Device, "/dev/loop") {
+			continue
+		}
 		usage, err := disk.Usage(p.Mountpoint)
 		if err != nil {
 			continue // skip inaccessible partitions
