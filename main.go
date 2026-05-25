@@ -30,8 +30,9 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              ":" + port,
-		Handler:           mux,
+		Handler:           handlers.TimeoutMiddleware(mux),
 		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      12 * time.Second,
 		IdleTimeout:       60 * time.Second,
 		MaxHeaderBytes:    1 << 20, // 1 MB
 	}

@@ -1,11 +1,15 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
-	"sync"
+	"strings"
 	"sysload/collectors"
 	"sysload/models"
+	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
 // Health returns a simple health check.
@@ -89,36 +93,39 @@ func Stats(w http.ResponseWriter, r *http.Request) {
 		netErr    error
 	)
 
-	var wg sync.WaitGroup
-	wg.Add(5)
+	g, _ := errgroup.WithContext(r.Context())
 
-	go func() {
-		defer wg.Done()
+	g.Go(func() error {
 		cpuStats, cpuErr = collectors.CollectCPU()
-	}()
-	go func() {
-		defer wg.Done()
+		return cpuErr
+	})
+	g.Go(func() error {
 		memStats, memErr = collectors.CollectMemory()
-	}()
-	go func() {
-		defer wg.Done()
+		return memErr
+	})
+	g.Go(func() error {
 		diskStats, diskErr = collectors.CollectDisk()
-	}()
-	go func() {
-		defer wg.Done()
+		return diskErr
+	})
+	g.Go(func() error {
 		gpuStats = collectors.CollectGPU()
-	}()
-	go func() {
-		defer wg.Done()
+		return nil
+	})
+	g.Go(func() error {
 		netStats, netErr = collectors.CollectNetwork()
-	}()
+		return netErr
+	})
 
-	wg.Wait()
+	_ = g.Wait()
 
-	// If every collector failed, return error.
 	if cpuStats == nil && memStats == nil && diskStats == nil && gpuStats == nil && netStats == nil {
-		errs := collectErrors(cpuErr, memErr, diskErr, netErr)
-		writeError(w, "all collectors failed: "+errs)
+		var parts []string
+		for _, e := range []error{cpuErr, memErr, diskErr, netErr} {
+			if e != nil {
+				parts = append(parts, e.Error())
+			}
+		}
+		writeError(w, "all collectors failed: "+strings.Join(parts, "; "))
 		return
 	}
 
@@ -132,23 +139,6 @@ func Stats(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func collectErrors(errs ...error) string {
-	var parts []string
-	for _, e := range errs {
-		if e != nil {
-			parts = append(parts, e.Error())
-		}
-	}
-	result := ""
-	for i, p := range parts {
-		if i > 0 {
-			result += "; "
-		}
-		result += p
-	}
-	return result
-}
-
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -157,4 +147,25 @@ func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 
 func writeError(w http.ResponseWriter, msg string) {
 	writeJSON(w, http.StatusInternalServerError, models.ErrorResponse{Error: msg})
+}
+
+// TimeoutMiddleware enforces a 10s request deadline. Returns HTTP 504 on timeout.
+func TimeoutMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+		r = r.WithContext(ctx)
+
+		done := make(chan struct{})
+		go func() {
+			next.ServeHTTP(w, r)
+			close(done)
+		}()
+
+		select {
+		case <-done:
+		case <-ctx.Done():
+			writeJSON(w, http.StatusGatewayTimeout, models.ErrorResponse{Error: "request timeout"})
+		}
+	})
 }

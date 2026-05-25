@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -226,44 +225,6 @@ func TestStats(t *testing.T) {
 	}
 	if _, ok := body["network"]; !ok {
 		t.Error("response missing 'network' field")
-	}
-}
-
-func TestCollectErrors(t *testing.T) {
-	tests := []struct {
-		name     string
-		errs     []error
-		expected string
-	}{
-		{
-			name:     "no errors",
-			errs:     nil,
-			expected: "",
-		},
-		{
-			name:     "single error",
-			errs:     []error{errors.New("err1")},
-			expected: "err1",
-		},
-		{
-			name:     "multiple errors",
-			errs:     []error{errors.New("err1"), errors.New("err2")},
-			expected: "err1; err2",
-		},
-		{
-			name:     "mixed nil and errors",
-			errs:     []error{nil, errors.New("err1"), nil},
-			expected: "err1",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := collectErrors(tc.errs...)
-			if got != tc.expected {
-				t.Errorf("collectErrors() = %q, want %q", got, tc.expected)
-			}
-		})
 	}
 }
 
