@@ -136,10 +136,32 @@ On failure, the API returns HTTP 500:
 
 ```bash
 go build ./...          # build all packages
-go test ./...           # run tests
+go test ./...           # run tests (full suite, includes ~1s delta sampling)
+go test -short ./...    # run fast unit tests only (skips integration/slow tests)
 go test ./collectors/   # test a single package
 go vet ./...            # static analysis
 go fmt ./...            # format code
+```
+
+## Testing
+
+The test suite covers unit tests for pure functions and parsing logic, plus integration tests that call the real system collectors and HTTP handlers.
+
+### Test Layout
+
+| Package | Focus |
+|---------|-------|
+| `collectors` | `roundTo1`/`roundTo2`/`roundSlice` edge cases, `parseNvidiaSMI` with mock CSV input, `CollectCPU`/`CollectMemory`/`CollectDisk`/`CollectNetwork`/`CollectGPU` integration |
+| `handlers` | All 7 endpoints via `httptest`, `collectErrors`, `writeJSON`/`writeError` helpers |
+| `models` | `Now()` RFC 3339/UTC validation, struct field construction |
+
+### Short Mode
+
+Integration tests that involve 1-second delta sampling (network, disk I/O) or real system calls are skipped with `-short`:
+
+```bash
+go test -short -v ./...   # fast unit-only (~instant)
+go test -v ./...           # full suite (~3s due to delta sampling)
 ```
 
 ## Dependencies

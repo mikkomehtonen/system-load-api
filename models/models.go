@@ -115,7 +115,7 @@ type NetworkStats struct {
 
 // NetworkInterface holds per-interface rates.
 type NetworkInterface struct {
-	Name        string `json:"name"`
+	Name         string `json:"name"`
 	BytesSentSec uint64 `json:"bytes_sent_sec"`
 	BytesRecvSec uint64 `json:"bytes_recv_sec"`
 }

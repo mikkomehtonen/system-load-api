@@ -118,7 +118,7 @@ func Stats(w http.ResponseWriter, r *http.Request) {
 	// If every collector failed, return error.
 	if cpuStats == nil && memStats == nil && diskStats == nil && gpuStats == nil && netStats == nil {
 		errs := collectErrors(cpuErr, memErr, diskErr, netErr)
-		writeError(w, "all collectors failed: " + errs)
+		writeError(w, "all collectors failed: "+errs)
 		return
 	}
 
