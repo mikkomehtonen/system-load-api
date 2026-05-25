@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sysload</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: oklch(18% 0.01 260);
+  --bg-raised: oklch(22% 0.01 260);
+  --bg-overlay: oklch(26% 0.01 260);
+  --fg: oklch(80% 0.02 260);
+  --fg-dim: oklch(55% 0.02 260);
+  --fg-muted: oklch(40% 0.02 260);
+  --accent: oklch(75% 0.18 145);
+  --accent-dim: oklch(55% 0.12 145);
+  --warn: oklch(78% 0.16 85);
+  --warn-dim: oklch(58% 0.10 85);
+  --err: oklch(68% 0.22 25);
+  --err-dim: oklch(50% 0.14 25);
+  --bar-bg: oklch(28% 0.01 260);
+  --font: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', 'Consolas', monospace;
+  --radius: 3px;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  src: local('JetBrains Mono'), local('JetBrainsMono-Regular');
+}
+
+html { font-size: 13px; }
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 1rem;
+  line-height: 1.5;
+  min-height: 100vh;
+  padding: 1rem;
+  -webkit-font-smoothing: antialiased;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--bg-overlay);
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+header h1 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: -0.02em;
+}
+
+header h1 span {
+  color: var(--fg-dim);
+  font-weight: 400;
+}
+
+#status {
+  font-size: 0.8rem;
+  color: var(--fg-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+#status .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+#status.error .dot { background: var(--err); animation: none; }
+#status.loading .dot { background: var(--warn); animation: pulse 0.6s ease-in-out infinite; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+section {
+  background: var(--bg-raised);
+  border: 1px solid var(--bg-overlay);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+}
+
+section.full { grid-column: 1 / -1; }
+
+section h2 {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-dim);
+  margin-bottom: 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+section h2::before {
+  content: '$';
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.metric {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.2rem 0;
+  gap: 1rem;
+  font-size: 0.9rem;
+}
+
+.metric .label {
+  color: var(--fg-dim);
+  flex-shrink: 0;
+  min-width: 80px;
+}
+
+.metric .value {
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  flex-shrink: 0;
+  min-width: 80px;
+}
+
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.15rem 0;
+  font-size: 0.85rem;
+}
+
+.bar-row .bar-label {
+  color: var(--fg-dim);
+  width: 60px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.bar-track {
+  flex: 1;
+  height: 10px;
+  background: var(--bar-bg);
+  border-radius: var(--radius);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: var(--radius);
+  background: var(--accent);
+  transition: width 0.4s ease, background 0.4s ease;
+  min-width: 0;
+}
+
+.bar-fill.warn { background: var(--warn); }
+.bar-fill.err { background: var(--err); }
+
+.bar-pct {
+  width: 42px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.bar-pct.warn { color: var(--warn-dim); }
+.bar-pct.err { color: var(--err-dim); }
+
+.core-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.25rem 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.core-grid .bar-row .bar-label {
+  width: 40px;
+  font-size: 0.75rem;
+}
+
+.disk-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.disk-table th {
+  text-align: left;
+  color: var(--fg-muted);
+  font-weight: 500;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.25rem 0.5rem 0.35rem;
+  border-bottom: 1px solid var(--bg-overlay);
+}
+
+.disk-table td {
+  padding: 0.2rem 0.5rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+  border-bottom: 1px solid var(--bg-raised);
+}
+
+.disk-table tr:last-child td { border-bottom: none; }
+
+.disk-bar-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.disk-bar-track {
+  flex: 1;
+  height: 6px;
+  background: var(--bar-bg);
+  border-radius: 2px;
+  overflow: hidden;
+  min-width: 40px;
+}
+
+.disk-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.4s ease, background 0.4s ease;
+}
+
+.disk-bar-fill.warn { background: var(--warn); }
+.disk-bar-fill.err { background: var(--err); }
+
+.gpu-device {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--bg-overlay);
+}
+
+.gpu-device:last-child { border-bottom: none; }
+
+.gpu-device .gpu-name {
+  font-size: 0.85rem;
+  color: var(--accent);
+  margin-bottom: 0.3rem;
+}
+
+.gpu-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.15rem 1rem;
+}
+
+.gpu-unavailable {
+  color: var(--fg-muted);
+  font-size: 0.85rem;
+  padding: 0.5rem 0;
+}
+
+.gpu-error {
+  color: var(--err-dim);
+  font-size: 0.85rem;
+  padding: 0.3rem 0;
+}
+
+.net-iface {
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--bg-overlay);
+}
+
+.net-iface:last-child { border-bottom: none; }
+
+.net-name {
+  color: var(--accent);
+  font-size: 0.85rem;
+  margin-bottom: 0.2rem;
+}
+
+.net-rates {
+  display: flex;
+  gap: 1.5rem;
+  font-size: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.net-rates .rate-label {
+  color: var(--fg-dim);
+}
+
+section-divider {
+  border-top: 1px solid var(--bg-overlay);
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+}
+
+#timestamp {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--fg-muted);
+  padding: 0.75rem 0 0.25rem;
+}
+
+@media (max-width: 640px) {
+  html { font-size: 12px; }
+  body { padding: 0.5rem; }
+  .grid { grid-template-columns: 1fr; }
+  .core-grid { grid-template-columns: 1fr; }
+  section { padding: 0.6rem 0.75rem; }
+  .gpu-metrics { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>sysload <span>/api/v1/stats</span></h1>
+  <div id="status" class="loading">
+    <span class="dot"></span>
+    <span id="status-text">connecting...</span>
+  </div>
+</header>
+
+<div class="grid">
+  <!-- CPU -->
+  <section id="cpu-section">
+    <h2>cpu</h2>
+    <div id="cpu-content">
+      <div class="metric"><span class="label">usage</span><span class="value" id="cpu-usage">--%</span></div>
+      <div class="metric"><span class="label">cores</span><span class="value" id="cpu-cores">--</span></div>
+      <div class="metric"><span class="label">load 1m</span><span class="value" id="cpu-load1">--</span></div>
+      <div class="metric"><span class="label">load 5m</span><span class="value" id="cpu-load5">--</span></div>
+      <div class="metric"><span class="label">load 15m</span><span class="value" id="cpu-load15">--</span></div>
+      <div class="bar-row"><span class="bar-label">overall</span>
+        <div class="bar-track"><div class="bar-fill" id="cpu-bar" style="width:0%"></div></div>
+        <span class="bar-pct" id="cpu-pct">--%</span>
+      </div>
+    </div>
+    <div class="core-grid" id="cpu-cores-grid"></div>
+  </section>
+
+  <!-- Memory -->
+  <section id="mem-section">
+    <h2>memory</h2>
+    <div id="mem-content">
+      <div class="metric"><span class="label">total</span><span class="value" id="mem-total">-- GB</span></div>
+      <div class="metric"><span class="label">used</span><span class="value" id="mem-used">-- GB</span></div>
+      <div class="metric"><span class="label">available</span><span class="value" id="mem-avail">-- GB</span></div>
+      <div class="bar-row"><span class="bar-label">usage</span>
+        <div class="bar-track"><div class="bar-fill" id="mem-bar" style="width:0%"></div></div>
+        <span class="bar-pct" id="mem-pct">--%</span>
+      </div>
+    </div>
+    <div class="section-divider">
+      <h2 style="margin-bottom:0.3rem">swap</h2>
+      <div class="metric"><span class="label">total</span><span class="value" id="swap-total">-- GB</span></div>
+      <div class="metric"><span class="label">used</span><span class="value" id="swap-used">-- GB</span></div>
+      <div class="bar-row"><span class="bar-label">usage</span>
+        <div class="bar-track"><div class="bar-fill" id="swap-bar" style="width:0%"></div></div>
+        <span class="bar-pct" id="swap-pct">--%</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Disk -->
+  <section id="disk-section" class="full">
+    <h2>disk</h2>
+    <table class="disk-table">
+      <thead>
+        <tr>
+          <th>device</th>
+          <th>mount</th>
+          <th>type</th>
+          <th>total</th>
+          <th>used</th>
+          <th style="min-width:120px">usage</th>
+        </tr>
+      </thead>
+      <tbody id="disk-tbody"></tbody>
+    </table>
+    <div class="section-divider">
+      <h2 style="margin-bottom:0.3rem">i/o</h2>
+      <div class="metric"><span class="label">read</span><span class="value" id="disk-read">-- B/s</span></div>
+      <div class="metric"><span class="label">write</span><span class="value" id="disk-write">-- B/s</span></div>
+    </div>
+  </section>
+
+  <!-- GPU -->
+  <section id="gpu-section">
+    <h2>gpu</h2>
+    <div id="gpu-content"></div>
+  </section>
+
+  <!-- Network -->
+  <section id="net-section">
+    <h2>network</h2>
+    <div id="net-content"></div>
+  </section>
+</div>
+
+<div id="timestamp">last updated: --</div>
+
+<script>
+(function() {
+  'use strict';
+
+  const POLL_INTERVAL = 5000;
+  const API_URL = '/api/v1/stats';
+
+  const statusEl = document.getElementById('status');
+  const statusText = document.getElementById('status-text');
+  const tsEl = document.getElementById('timestamp');
+
+  function setStatus(state) {
+    statusEl.className = state;
+    if (state === 'loading') statusText.textContent = 'fetching...';
+    else if (state === 'ok') statusText.textContent = 'connected';
+    else if (state === 'error') statusText.textContent = 'disconnected';
+  }
+
+  function barClass(pct) {
+    if (pct >= 90) return 'err';
+    if (pct >= 75) return 'warn';
+    return '';
+  }
+
+  function fmtBytes(bps) {
+    if (bps >= 1e9) return (bps / 1e9).toFixed(2) + ' GB/s';
+    if (bps >= 1e6) return (bps / 1e6).toFixed(2) + ' MB/s';
+    if (bps >= 1e3) return (bps / 1e3).toFixed(1) + ' KB/s';
+    return bps + ' B/s';
+  }
+
+  function fmtGB(gb) {
+    if (gb >= 1000) return (gb / 1000).toFixed(3).replace(/\.?0+$/, '') + ' TB';
+    if (gb >= 1) return gb.toFixed(1) + ' GB';
+    return (gb * 1024).toFixed(0) + ' MB';
+  }
+
+  function fmtLoad(l) {
+    return l.toFixed(2);
+  }
+
+  function fmtTimestamp(ts) {
+    try {
+      const d = new Date(ts);
+      return d.toLocaleTimeString('en-GB') + ' ' + d.toLocaleDateString('en-CA');
+    } catch (e) { return ts; }
+  }
+
+  function el(id) { return document.getElementById(id); }
+
+  // --- CPU ---
+  function renderCPU(data) {
+    if (!data) { el('cpu-section').style.display = 'none'; return; }
+    el('cpu-section').style.display = '';
+
+    var usage = data.usage_percent || 0;
+    el('cpu-usage').textContent = usage.toFixed(1) + '%';
+    el('cpu-cores').textContent = data.core_count || 0;
+    el('cpu-load1').textContent = fmtLoad(data.load_avg_1min || 0);
+    el('cpu-load5').textContent = fmtLoad(data.load_avg_5min || 0);
+    el('cpu-load15').textContent = fmtLoad(data.load_avg_15min || 0);
+
+    var bc = barClass(usage);
+    el('cpu-bar').style.width = usage + '%';
+    el('cpu-bar').className = 'bar-fill ' + bc;
+    el('cpu-pct').textContent = usage.toFixed(0) + '%';
+    el('cpu-pct').className = 'bar-pct ' + bc;
+
+    var grid = el('cpu-cores-grid');
+    grid.innerHTML = '';
+    if (data.per_core_percent && data.per_core_percent.length > 0) {
+      data.per_core_percent.forEach(function(pct, i) {
+        var c = barClass(pct);
+        var row = document.createElement('div');
+        row.className = 'bar-row';
+        row.innerHTML = '<span class="bar-label">C' + i + '</span>' +
+          '<div class="bar-track"><div class="bar-fill ' + c + '" style="width:' + pct + '%"></div></div>' +
+          '<span class="bar-pct ' + c + '">' + pct.toFixed(0) + '%</span>';
+        grid.appendChild(row);
+      });
+    }
+  }
+
+  // --- Memory ---
+  function renderMemory(data) {
+    if (!data) { el('mem-section').style.display = 'none'; return; }
+    el('mem-section').style.display = '';
+
+    var usage = data.usage_percent || 0;
+    el('mem-total').textContent = fmtGB(data.total_gb || 0);
+    el('mem-used').textContent = fmtGB(data.used_gb || 0);
+    el('mem-avail').textContent = fmtGB(data.available_gb || 0);
+
+    var bc = barClass(usage);
+    el('mem-bar').style.width = usage + '%';
+    el('mem-bar').className = 'bar-fill ' + bc;
+    el('mem-pct').textContent = usage.toFixed(0) + '%';
+    el('mem-pct').className = 'bar-pct ' + bc;
+
+    // Swap
+    var swapTotal = data.swap_total_gb || 0;
+    if (swapTotal > 0) {
+      var swapUsed = data.swap_used_gb || 0;
+      var swapPct = data.swap_usage_percent || 0;
+      var sc = barClass(swapPct);
+      el('swap-total').textContent = fmtGB(swapTotal);
+      el('swap-used').textContent = fmtGB(swapUsed);
+      el('swap-bar').style.width = swapPct + '%';
+      el('swap-bar').className = 'bar-fill ' + sc;
+      el('swap-pct').textContent = swapPct.toFixed(0) + '%';
+      el('swap-pct').className = 'bar-pct ' + sc;
+    } else {
+      el('swap-total').textContent = 'none';
+      el('swap-used').textContent = '0 MB';
+      el('swap-bar').style.width = '0%';
+      el('swap-bar').className = 'bar-fill';
+      el('swap-pct').textContent = '0%';
+      el('swap-pct').className = 'bar-pct';
+    }
+  }
+
+  // --- Disk ---
+  function renderDisk(data) {
+    if (!data) { el('disk-section').style.display = 'none'; return; }
+    el('disk-section').style.display = '';
+
+    var tbody = el('disk-tbody');
+    tbody.innerHTML = '';
+
+    if (data.partitions && data.partitions.length > 0) {
+      data.partitions.forEach(function(p) {
+        var pct = p.usage_percent || 0;
+        var bc = barClass(pct);
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td>' + (p.device || '-') + '</td>' +
+          '<td>' + (p.mountpoint || '-') + '</td>' +
+          '<td>' + (p.fstype || '-') + '</td>' +
+          '<td>' + fmtGB(p.total_gb || 0) + '</td>' +
+          '<td>' + fmtGB(p.used_gb || 0) + '</td>' +
+          '<td><div class="disk-bar-cell">' +
+            '<div class="disk-bar-track"><div class="disk-bar-fill ' + bc + '" style="width:' + pct + '%"></div></div>' +
+            '<span class="bar-pct ' + bc + '">' + pct.toFixed(0) + '%</span>' +
+          '</div></td>';
+        tbody.appendChild(tr);
+      });
+    }
+
+    if (data.io) {
+      el('disk-read').textContent = fmtBytes(data.io.read_bytes_sec || 0);
+      el('disk-write').textContent = fmtBytes(data.io.write_bytes_sec || 0);
+    } else {
+      el('disk-read').textContent = '-';
+      el('disk-write').textContent = '-';
+    }
+  }
+
+  // --- GPU ---
+  function renderGPU(data) {
+    if (!data) { el('gpu-section').style.display = 'none'; return; }
+    el('gpu-section').style.display = '';
+    var container = el('gpu-content');
+
+    if (data.error) {
+      container.innerHTML = '<div class="gpu-error">! ' + escapeHtml(data.error) + '</div>' +
+        '<div class="gpu-unavailable">n/a - gpu metrics unavailable</div>';
+      return;
+    }
+
+    if (!data.available) {
+      container.innerHTML = '<div class="gpu-unavailable">[ none detected ]</div>';
+      return;
+    }
+
+    if (!data.devices || data.devices.length === 0) {
+      container.innerHTML = '<div class="gpu-unavailable">[ no devices ]</div>';
+      return;
+    }
+
+    container.innerHTML = '';
+    data.devices.forEach(function(d) {
+      var div = document.createElement('div');
+      div.className = 'gpu-device';
+
+      var utilPct = d.utilization_percent || 0;
+      var memPct = d.memory_usage_percent || 0;
+      var tempPct = (d.temperature_c || 0) / 100 * 100; // normalize to 0-100 for bar
+      var tempC = d.temperature_c || 0;
+
+      var utilC = barClass(utilPct);
+      var memC = barClass(memPct);
+      var tempBarPct = Math.min(tempC, 100);
+      var tempC_class = tempC >= 90 ? 'err' : tempC >= 75 ? 'warn' : '';
+
+      div.innerHTML =
+        '<div class="gpu-name">' + escapeHtml(d.name || 'GPU ' + d.index) + '</div>' +
+        '<div class="bar-row"><span class="bar-label">util</span>' +
+          '<div class="bar-track"><div class="bar-fill ' + utilC + '" style="width:' + utilPct + '%"></div></div>' +
+          '<span class="bar-pct ' + utilC + '">' + utilPct.toFixed(0) + '%</span></div>' +
+        '<div class="bar-row"><span class="bar-label">vram</span>' +
+          '<div class="bar-track"><div class="bar-fill ' + memC + '" style="width:' + memPct + '%"></div></div>' +
+          '<span class="bar-pct ' + memC + '">' + memPct.toFixed(0) + '%</span></div>' +
+        '<div class="bar-row"><span class="bar-label">temp</span>' +
+          '<div class="bar-track"><div class="bar-fill ' + tempC_class + '" style="width:' + tempBarPct + '%"></div></div>' +
+          '<span class="bar-pct ' + tempC_class + '">' + tempC.toFixed(0) + 'C</span></div>' +
+        '<div class="metric"><span class="label">vram used</span>' +
+          '<span class="value">' + (d.memory_used_mb || 0).toFixed(0) + ' / ' + (d.memory_total_mb || 0).toFixed(0) + ' MB</span></div>';
+
+      container.appendChild(div);
+    });
+  }
+
+  // --- Network ---
+  function renderNetwork(data) {
+    if (!data) { el('net-section').style.display = 'none'; return; }
+    el('net-section').style.display = '';
+
+    var container = el('net-content');
+    container.innerHTML = '';
+
+    if (!data.interfaces || data.interfaces.length === 0) {
+      container.innerHTML = '<div class="gpu-unavailable">[ no interfaces ]</div>';
+      return;
+    }
+
+    data.interfaces.forEach(function(iface) {
+      var div = document.createElement('div');
+      div.className = 'net-iface';
+      div.innerHTML =
+        '<div class="net-name">' + escapeHtml(iface.name) + '</div>' +
+        '<div class="net-rates">' +
+          '<div><span class="rate-label">rx </span><span>' + fmtBytes(iface.bytes_recv_sec || 0) + '</span></div>' +
+          '<div><span class="rate-label">tx </span><span>' + fmtBytes(iface.bytes_sent_sec || 0) + '</span></div>' +
+        '</div>';
+      container.appendChild(div);
+    });
+  }
+
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+  }
+
+  // --- Fetch & Render ---
+  function fetchData() {
+    setStatus('loading');
+
+    fetch(API_URL)
+      .then(function(resp) {
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        return resp.json();
+      })
+      .then(function(data) {
+        setStatus('ok');
+
+        if (data.timestamp) tsEl.textContent = 'last updated: ' + fmtTimestamp(data.timestamp);
+
+        renderCPU(data.cpu);
+        renderMemory(data.memory);
+        renderDisk(data.disk);
+        renderGPU(data.gpu);
+        renderNetwork(data.network);
+      })
+      .catch(function(err) {
+        setStatus('error');
+        tsEl.textContent = 'last updated: error - ' + err.message;
+      });
+  }
+
+  // Initial fetch and polling
+  fetchData();
+  setInterval(fetchData, POLL_INTERVAL);
+})();
+</script>
+</body>
+</html>

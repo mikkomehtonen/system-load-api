@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"embed"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -13,10 +15,19 @@ import (
 	"sysload/handlers"
 )
 
+//go:embed static/*
+var staticFiles embed.FS
+
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
+	}
+
+	// Serve static UI dashboard
+	staticSub, err := fs.Sub(staticFiles, "static")
+	if err != nil {
+		log.Fatalf("Failed to embed static files: %v", err)
 	}
 
 	mux := http.NewServeMux()
@@ -27,6 +38,7 @@ func main() {
 	mux.HandleFunc("/api/v1/disk", handlers.Disk)
 	mux.HandleFunc("/api/v1/gpu", handlers.GPU)
 	mux.HandleFunc("/api/v1/network", handlers.Network)
+	mux.Handle("/", http.FileServer(http.FS(staticSub)))
 
 	srv := &http.Server{
 		Addr:              ":" + port,
