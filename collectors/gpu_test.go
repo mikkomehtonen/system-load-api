@@ -5,7 +5,7 @@ import (
 )
 
 func TestParseNvidiaSMI_SingleGPU(t *testing.T) {
-	input := []byte("0, NVIDIA GeForce RTX 4090, 85, 24576, 12288, 50.0, 72\n")
+	input := []byte("0, NVIDIA GeForce RTX 4090, 85, 24576, 12288, 72\n")
 	devices, err := parseNvidiaSMI(input)
 	if err != nil {
 		t.Fatalf("parseNvidiaSMI() error: %v", err)
@@ -39,7 +39,7 @@ func TestParseNvidiaSMI_SingleGPU(t *testing.T) {
 }
 
 func TestParseNvidiaSMI_MultipleGPUs(t *testing.T) {
-	input := []byte("0, NVIDIA A100, 42, 81920, 32768, 40.0, 65\n1, NVIDIA A100, 78, 81920, 65536, 80.0, 81\n")
+	input := []byte("0, NVIDIA A100, 42, 81920, 32768, 65\n1, NVIDIA A100, 78, 81920, 65536, 81\n")
 	devices, err := parseNvidiaSMI(input)
 	if err != nil {
 		t.Fatalf("parseNvidiaSMI() error: %v", err)
@@ -82,7 +82,7 @@ func TestParseNvidiaSMI_TruncatedRow(t *testing.T) {
 }
 
 func TestParseNvidiaSMI_MalformedNumber(t *testing.T) {
-	input := []byte("0, NVIDIA RTX 4090, N/A, 24576, 12288, 50.0, 72\n")
+	input := []byte("0, NVIDIA RTX 4090, N/A, 24576, 12288, 72\n")
 	devices, err := parseNvidiaSMI(input)
 	if err != nil {
 		t.Fatalf("parseNvidiaSMI() with N/A utilization error: %v", err)
@@ -96,7 +96,7 @@ func TestParseNvidiaSMI_MalformedNumber(t *testing.T) {
 }
 
 func TestParseNvidiaSMI_FractionalValues(t *testing.T) {
-	input := []byte("0, NVIDIA RTX 3080, 33.3, 10240, 5120.5, 50.1, 67.8\n")
+	input := []byte("0, NVIDIA RTX 3080, 33.3, 10240, 5120.5, 67.8\n")
 	devices, err := parseNvidiaSMI(input)
 	if err != nil {
 		t.Fatalf("parseNvidiaSMI() error: %v", err)

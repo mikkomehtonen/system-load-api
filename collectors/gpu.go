@@ -21,7 +21,7 @@ func CollectGPU() *models.GPUStats {
 		}
 	}
 
-	queryFields := "index,name,utilization.gpu,memory.total,memory.used,memory.used_percent,temperature.gpu"
+	queryFields := "index,name,utilization.gpu,memory.total,memory.used,temperature.gpu"
 	cmd := exec.Command(path,
 		"--query-gpu="+queryFields,
 		"--format=csv,noheader,nounits",
@@ -59,7 +59,7 @@ func parseNvidiaSMI(out []byte) ([]models.GPUDevice, error) {
 
 	var devices []models.GPUDevice
 	for _, r := range records {
-		if len(r) < 7 {
+		if len(r) < 6 {
 			continue
 		}
 		index, _ := strconv.Atoi(strings.TrimSpace(r[0]))
@@ -67,8 +67,11 @@ func parseNvidiaSMI(out []byte) ([]models.GPUDevice, error) {
 		utilPct, _ := strconv.ParseFloat(strings.TrimSpace(r[2]), 64)
 		memTotal, _ := strconv.ParseFloat(strings.TrimSpace(r[3]), 64)
 		memUsed, _ := strconv.ParseFloat(strings.TrimSpace(r[4]), 64)
-		memPct, _ := strconv.ParseFloat(strings.TrimSpace(r[5]), 64)
-		temp, _ := strconv.ParseFloat(strings.TrimSpace(r[6]), 64)
+		temp, _ := strconv.ParseFloat(strings.TrimSpace(r[5]), 64)
+		var memPct float64
+		if memTotal > 0 {
+			memPct = (memUsed / memTotal) * 100
+		}
 
 		devices = append(devices, models.GPUDevice{
 			Index:              index,
