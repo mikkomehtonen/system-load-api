@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-The System Load API is a lightweight Go HTTP service that exposes real-time system resource metrics as JSON. It collects CPU, memory, disk, GPU, and network statistics and serves them through RESTful endpoints. The service uses only the Go standard library for HTTP routing and relies on `gopsutil/v3` and `nvidia-smi` for system metrics.
+The System Load API is a lightweight Go HTTP service that exposes real-time system resource metrics as JSON. It collects CPU, memory, disk, GPU, and network statistics and serves them through RESTful endpoints. The service uses only the Go standard library for HTTP routing and relies on `gopsutil/v3` and `nvidia-smi` for system metrics. An embedded dark terminal dashboard UI is served at `/` for browser-based monitoring.
 
 ### 1.1 Goals
 
@@ -11,6 +11,7 @@ The System Load API is a lightweight Go HTTP service that exposes real-time syst
 - Support both aggregate and per-metric endpoint queries
 - Gracefully degrade when optional hardware (GPU) is unavailable
 - Operate with a 10-second request timeout to accommodate delta-sampled metrics
+- Include an embedded dashboard UI for browser-based monitoring
 
 ### 1.2 Non-Goals
 
@@ -50,6 +51,8 @@ The System Load API is a lightweight Go HTTP service that exposes real-time syst
 
 ```
 main.go              # Entry point, server setup, signal handling, routing
+static/              # Embedded dashboard UI
+  index.html         # Single-page dashboard (dark terminal theme, 5s auto-refresh)
 collectors/          # Metric collection functions (one per resource type)
   cpu.go             # CPU load averages, usage %, per-core usage
   memory.go          # RAM and swap usage
@@ -259,6 +262,7 @@ GET /api/v1/disk
 
 **Notes:**
 - Inaccessible partitions are silently skipped
+- `/dev/loop*` devices (snap squashfs mounts) are filtered out
 - If I/O counters are unavailable, `io` is `null` but `partitions` is still returned
 
 #### 4.2.6 GPU Metrics
@@ -351,9 +355,48 @@ GET /api/v1/network
 
 ---
 
-## 5. Implementation Details
+## 5. Dashboard UI
 
-### 5.1 Rounding
+### 5.1 Overview
+
+The API binary embeds a single-page dashboard UI served at `/`. The UI is a vanilla HTML/CSS/JS file with no external dependencies, embedded via Go's `embed.FS`.
+
+### 5.2 Access
+
+- **URL:** `http://<host>:<port>/` (e.g., `http://localhost:8080/`)
+- **Refresh:** Auto-polls `/api/v1/stats` every 5 seconds
+- **Theme:** Dark terminal style, monospace font, oklch color palette
+
+### 5.3 Sections
+
+| Section | Content |
+|---|---|
+| CPU | Overall usage %, load averages (1m/5m/15m), per-core progress bars |
+| Memory | Total/used/available RAM, swap usage, progress bars |
+| Disk | Partition table (device, mount, type, size, usage bar), I/O read/write rates |
+| GPU | Per-device utilization, VRAM usage, temperature bars; graceful "unavailable" state |
+| Network | Per-interface RX/TX byte rates |
+
+### 5.4 Color Thresholds
+
+| Level | Threshold | Color |
+|---|---|---|
+| Normal | < 75% | Green (accent) |
+| Warning | 75–89% | Orange |
+| Error | ≥ 90% | Red |
+
+### 5.5 Technical Details
+
+- Single `static/index.html` file, embedded at build time
+- `fs.Sub(staticFiles, "static")` strips the `static/` prefix for serving at `/`
+- API routes (`/api/v1/*`, `/health`) take precedence over the file server (Go `ServeMux` most-specific-first matching)
+- Responsive layout collapses to single column below 640px
+
+---
+
+## 6. Implementation Details
+
+### 6.1 Rounding
 
 All floating-point values are rounded before serialization:
 
@@ -365,7 +408,7 @@ All floating-point values are rounded before serialization:
 
 Rounding uses the formula: `float64(int(v*10^n + 0.5)) / 10^n`
 
-### 5.2 Delta Sampling
+### 6.2 Delta Sampling
 
 Network and disk I/O metrics require two snapshots separated by 1 second:
 
@@ -378,7 +421,7 @@ Delta = T1 - T1 (per interface or aggregate)
 
 This means any endpoint returning network or disk I/O stats has a minimum latency of ~1 second.
 
-### 5.3 Timeout Handling
+### 6.3 Timeout Handling
 
 A custom `TimeoutMiddleware` wraps all routes:
 
@@ -389,13 +432,13 @@ A custom `TimeoutMiddleware` wraps all routes:
 - Server `IdleTimeout`: 60 seconds
 - Server `MaxHeaderBytes`: 1 MB
 
-### 5.4 Graceful Shutdown
+### 6.4 Graceful Shutdown
 
 - Listens for `SIGINT` and `SIGTERM`
 - Shutdown context timeout: 10 seconds
 - In-flight requests are allowed to complete within the drain period
 
-### 5.5 Error Handling Strategy
+### 6.5 Error Handling Strategy
 
 | Collector | Error Behavior |
 |---|---|
@@ -409,16 +452,16 @@ In `/api/v1/stats`, partial failures yield 200 with `null` sections. Only total 
 
 ---
 
-## 6. Testing
+## 7. Testing
 
-### 6.1 Test Categories
+### 7.1 Test Categories
 
 | Category | Scope | Flag |
 |---|---|---|
 | Unit tests | Pure functions (`roundTo1`, `roundTo2`, `roundSlice`, `parseNvidiaSMI`, `Now()`) | Always run |
 | Integration tests | Real system collectors, HTTP endpoint responses | Skipped with `-short` |
 
-### 6.2 Test Commands
+### 7.2 Test Commands
 
 ```bash
 go test ./...              # Full suite (~3s, includes delta sampling)
@@ -428,7 +471,7 @@ go vet ./...               # Static analysis
 go fmt ./...               # Code formatting
 ```
 
-### 6.3 Test Coverage
+### 7.3 Test Coverage
 
 | Package | Coverage Areas |
 |---|---|
@@ -438,7 +481,7 @@ go fmt ./...               # Code formatting
 
 ---
 
-## 7. Endpoint Summary
+## 8. Endpoint Summary
 
 | Method | Path | Latency | GPU Required | Description |
 |---|---|---|---|---|
@@ -452,9 +495,9 @@ go fmt ./...               # Code formatting
 
 ---
 
-## 8. Response Schema Index
+## 9. Response Schema Index
 
-### 8.1 Top-Level Response Types
+### 9.1 Top-Level Response Types
 
 | Endpoint | Response Type |
 |---|---|
@@ -467,7 +510,7 @@ go fmt ./...               # Code formatting
 | `/api/v1/network` | `NetworkResponse` |
 | Any (error) | `ErrorResponse` |
 
-### 8.2 Nested Types
+### 9.2 Nested Types
 
 | Type | Parent | Description |
 |---|---|---|

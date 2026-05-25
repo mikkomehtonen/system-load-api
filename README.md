@@ -1,6 +1,6 @@
 # System Load API
 
-A Go HTTP API that returns real-time system load information as JSON, including CPU, memory, disk, GPU, and network metrics.
+A Go HTTP API that returns real-time system load information as JSON, including CPU, memory, disk, GPU, and network metrics. Includes a built-in dark terminal dashboard UI.
 
 ## Quick Start
 
@@ -14,6 +14,18 @@ The server starts on `:8080` by default. Set the `PORT` environment variable to 
 ```bash
 PORT=9090 ./sysload
 ```
+
+## Dashboard UI
+
+Open `http://localhost:8080` in a browser to see the real-time dashboard. It auto-refreshes every 5 seconds and displays:
+
+- **CPU** — overall usage, load averages, per-core bars
+- **Memory** — RAM and swap usage with progress bars
+- **Disk** — partition table with usage bars, I/O read/write rates
+- **GPU** — utilization, VRAM, temperature per device (graceful fallback if unavailable)
+- **Network** — per-interface RX/TX byte rates
+
+The UI is a single vanilla HTML file embedded in the binary — no external assets or build step needed.
 
 ## API Endpoints
 
