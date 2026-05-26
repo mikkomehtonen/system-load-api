@@ -106,6 +106,7 @@ type GPUDevice struct {
 	MemoryUsedMB       float64 `json:"memory_used_mb"`
 	MemoryUsagePercent float64 `json:"memory_usage_percent"`
 	TemperatureC       float64 `json:"temperature_c"`
+	FanSpeedPercent    float64 `json:"fan_speed_percent"`
 }
 
 // NetworkStats holds network metrics.

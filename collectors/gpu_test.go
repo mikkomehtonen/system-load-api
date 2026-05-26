@@ -5,7 +5,7 @@ import (
 )
 
 func TestParseNvidiaSMI_SingleGPU(t *testing.T) {
-	input := []byte("0, NVIDIA GeForce RTX 4090, 85, 24576, 12288, 72\n")
+	input := []byte("0, NVIDIA GeForce RTX 4090, 85, 24576, 12288, 72, 60\n")
 	devices, err := parseNvidiaSMI(input)
 	if err != nil {
 		t.Fatalf("parseNvidiaSMI() error: %v", err)
@@ -36,10 +36,13 @@ func TestParseNvidiaSMI_SingleGPU(t *testing.T) {
 	if d.TemperatureC != 72.0 {
 		t.Errorf("TemperatureC = %v, want 72.0", d.TemperatureC)
 	}
+	if d.FanSpeedPercent != 60.0 {
+		t.Errorf("FanSpeedPercent = %v, want 60.0", d.FanSpeedPercent)
+	}
 }
 
 func TestParseNvidiaSMI_MultipleGPUs(t *testing.T) {
-	input := []byte("0, NVIDIA A100, 42, 81920, 32768, 65\n1, NVIDIA A100, 78, 81920, 65536, 81\n")
+	input := []byte("0, NVIDIA A100, 42, 81920, 32768, 65, 45\n1, NVIDIA A100, 78, 81920, 65536, 81, 70\n")
 	devices, err := parseNvidiaSMI(input)
 	if err != nil {
 		t.Fatalf("parseNvidiaSMI() error: %v", err)
@@ -82,7 +85,7 @@ func TestParseNvidiaSMI_TruncatedRow(t *testing.T) {
 }
 
 func TestParseNvidiaSMI_MalformedNumber(t *testing.T) {
-	input := []byte("0, NVIDIA RTX 4090, N/A, 24576, 12288, 72\n")
+	input := []byte("0, NVIDIA RTX 4090, N/A, 24576, 12288, 72, 55\n")
 	devices, err := parseNvidiaSMI(input)
 	if err != nil {
 		t.Fatalf("parseNvidiaSMI() with N/A utilization error: %v", err)
@@ -96,7 +99,7 @@ func TestParseNvidiaSMI_MalformedNumber(t *testing.T) {
 }
 
 func TestParseNvidiaSMI_FractionalValues(t *testing.T) {
-	input := []byte("0, NVIDIA RTX 3080, 33.3, 10240, 5120.5, 67.8\n")
+	input := []byte("0, NVIDIA RTX 3080, 33.3, 10240, 5120.5, 67.8, 42.5\n")
 	devices, err := parseNvidiaSMI(input)
 	if err != nil {
 		t.Fatalf("parseNvidiaSMI() error: %v", err)
@@ -109,6 +112,37 @@ func TestParseNvidiaSMI_FractionalValues(t *testing.T) {
 	}
 	if devices[0].TemperatureC != 67.8 {
 		t.Errorf("TemperatureC = %v, want 67.8", devices[0].TemperatureC)
+	}
+	if devices[0].FanSpeedPercent != 42.5 {
+		t.Errorf("FanSpeedPercent = %v, want 42.5", devices[0].FanSpeedPercent)
+	}
+}
+
+func TestParseNvidiaSMI_NoFanSpeedColumn(t *testing.T) {
+	input := []byte("0, NVIDIA RTX 4090, 85, 24576, 12288, 72\n")
+	devices, err := parseNvidiaSMI(input)
+	if err != nil {
+		t.Fatalf("parseNvidiaSMI() error: %v", err)
+	}
+	if len(devices) != 1 {
+		t.Fatalf("len(devices) = %d, want 1", len(devices))
+	}
+	if devices[0].FanSpeedPercent != 0 {
+		t.Errorf("FanSpeedPercent = %v, want 0 when fan column missing", devices[0].FanSpeedPercent)
+	}
+}
+
+func TestParseNvidiaSMI_FanSpeedNA(t *testing.T) {
+	input := []byte("0, NVIDIA A100, 42, 81920, 32768, 65, N/A\n")
+	devices, err := parseNvidiaSMI(input)
+	if err != nil {
+		t.Fatalf("parseNvidiaSMI() error: %v", err)
+	}
+	if len(devices) != 1 {
+		t.Fatalf("len(devices) = %d, want 1", len(devices))
+	}
+	if devices[0].FanSpeedPercent != 0 {
+		t.Errorf("FanSpeedPercent = %v, want 0 for N/A fan speed", devices[0].FanSpeedPercent)
 	}
 }
 

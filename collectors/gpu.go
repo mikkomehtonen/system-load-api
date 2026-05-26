@@ -21,7 +21,7 @@ func CollectGPU() *models.GPUStats {
 		}
 	}
 
-	queryFields := "index,name,utilization.gpu,memory.total,memory.used,temperature.gpu"
+	queryFields := "index,name,utilization.gpu,memory.total,memory.used,temperature.gpu,fan.speed"
 	cmd := exec.Command(path,
 		"--query-gpu="+queryFields,
 		"--format=csv,noheader,nounits",
@@ -68,6 +68,10 @@ func parseNvidiaSMI(out []byte) ([]models.GPUDevice, error) {
 		memTotal, _ := strconv.ParseFloat(strings.TrimSpace(r[3]), 64)
 		memUsed, _ := strconv.ParseFloat(strings.TrimSpace(r[4]), 64)
 		temp, _ := strconv.ParseFloat(strings.TrimSpace(r[5]), 64)
+		var fanPct float64
+		if len(r) >= 7 {
+			fanPct, _ = strconv.ParseFloat(strings.TrimSpace(r[6]), 64)
+		}
 		var memPct float64
 		if memTotal > 0 {
 			memPct = (memUsed / memTotal) * 100
@@ -81,6 +85,7 @@ func parseNvidiaSMI(out []byte) ([]models.GPUDevice, error) {
 			MemoryUsedMB:       roundTo1(memUsed),
 			MemoryUsagePercent: roundTo1(memPct),
 			TemperatureC:       roundTo1(temp),
+			FanSpeedPercent:    roundTo1(fanPct),
 		})
 	}
 

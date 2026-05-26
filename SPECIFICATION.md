@@ -57,7 +57,7 @@ collectors/          # Metric collection functions (one per resource type)
   cpu.go             # CPU load averages, usage %, per-core usage
   memory.go          # RAM and swap usage
   disk.go            # Partition usage + I/O rates (1s delta)
-  gpu.go             # nvidia-smi parsing
+  gpu.go             # nvidia-smi parsing (utilization, VRAM, temperature, fan speed)
   network.go         # Per-interface byte rates (1s delta)
   rounding.go        # Shared rounding helpers
 handlers/            # HTTP handlers and middleware
@@ -285,7 +285,8 @@ GET /api/v1/gpu
         "memory_total_mb": 24576,
         "memory_used_mb": 8192,
         "memory_usage_percent": 33.3,
-        "temperature_c": 72
+        "temperature_c": 72,
+        "fan_speed_percent": 60
       }
     ]
   }
@@ -315,11 +316,13 @@ GET /api/v1/gpu
 | `memory_used_mb` | float64 | Used VRAM in MB (rounded to 1 decimal) |
 | `memory_usage_percent` | float64 | VRAM usage % (computed, rounded to 1 decimal) |
 | `temperature_c` | float64 | GPU temperature in Celsius (rounded to 1 decimal) |
+| `fan_speed_percent` | float64 | Fan speed as a percentage 0–100 (rounded to 1 decimal) |
 
 **Notes:**
 - This endpoint **never** returns HTTP 500
 - GPU metrics are sourced from `nvidia-smi` CLI with CSV output parsing
 - `memory_usage_percent` is computed as `(memory_used_mb / memory_total_mb) * 100`
+- `fan_speed_percent` is queried via `nvidia-smi --query-gpu=fan.speed`; if the value is unavailable or `N/A`, it defaults to `0`
 
 #### 4.2.7 Network Metrics
 
@@ -374,7 +377,7 @@ The API binary embeds a single-page dashboard UI served at `/`. The UI is a vani
 | CPU | Overall usage %, load averages (1m/5m/15m), per-core progress bars |
 | Memory | Total/used/available RAM, swap usage, progress bars |
 | Disk | Partition table (device, mount, type, size, usage bar), I/O read/write rates |
-| GPU | Per-device utilization, VRAM usage, temperature bars; graceful "unavailable" state |
+| GPU | Per-device utilization, VRAM usage, temperature, fan speed bars; graceful "unavailable" state |
 | Network | Per-interface RX/TX byte rates |
 
 ### 5.4 Color Thresholds

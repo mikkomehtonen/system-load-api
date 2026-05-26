@@ -610,13 +610,14 @@ section-divider {
 
       var utilPct = d.utilization_percent || 0;
       var memPct = d.memory_usage_percent || 0;
-      var tempPct = (d.temperature_c || 0) / 100 * 100; // normalize to 0-100 for bar
       var tempC = d.temperature_c || 0;
+      var fanPct = d.fan_speed_percent || 0;
 
       var utilC = barClass(utilPct);
       var memC = barClass(memPct);
       var tempBarPct = Math.min(tempC, 100);
       var tempC_class = tempC >= 90 ? 'err' : tempC >= 75 ? 'warn' : '';
+      var fanC = '';
 
       div.innerHTML =
         '<div class="gpu-name">' + escapeHtml(d.name || 'GPU ' + d.index) + '</div>' +
@@ -629,6 +630,9 @@ section-divider {
         '<div class="bar-row"><span class="bar-label">temp</span>' +
           '<div class="bar-track"><div class="bar-fill ' + tempC_class + '" style="width:' + tempBarPct + '%"></div></div>' +
           '<span class="bar-pct ' + tempC_class + '">' + tempC.toFixed(0) + 'C</span></div>' +
+        '<div class="bar-row"><span class="bar-label">fan</span>' +
+          '<div class="bar-track"><div class="bar-fill ' + fanC + '" style="width:' + fanPct + '%"></div></div>' +
+          '<span class="bar-pct ' + fanC + '">' + fanPct.toFixed(0) + '%</span></div>' +
         '<div class="metric"><span class="label">vram used</span>' +
           '<span class="value">' + (d.memory_used_mb || 0).toFixed(0) + ' / ' + (d.memory_total_mb || 0).toFixed(0) + ' MB</span></div>';
 

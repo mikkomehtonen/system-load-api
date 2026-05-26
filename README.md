@@ -22,7 +22,7 @@ Open `http://localhost:8080` in a browser to see the real-time dashboard. It aut
 - **CPU** — overall usage, load averages, per-core bars
 - **Memory** — RAM and swap usage with progress bars
 - **Disk** — partition table with usage bars, I/O read/write rates
-- **GPU** — utilization, VRAM, temperature per device (graceful fallback if unavailable)
+- **GPU** — utilization, VRAM, temperature, fan speed per device (graceful fallback if unavailable)
 - **Network** — per-interface RX/TX byte rates
 
 The UI is a single vanilla HTML file embedded in the binary — no external assets or build step needed.
@@ -89,7 +89,8 @@ The UI is a single vanilla HTML file embedded in the binary — no external asse
         "memory_total_mb": 24576,
         "memory_used_mb": 8192,
         "memory_usage_percent": 33.3,
-        "temperature_c": 72
+        "temperature_c": 72,
+        "fan_speed_percent": 60
       }
     ]
   },
