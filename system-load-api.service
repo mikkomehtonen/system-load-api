@@ -1,0 +1,13 @@
+[Unit]
+Description=System Load Monitor API
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/bin
+ExecStart=/opt/bin/sysload
+Environment=PORT=3101
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
