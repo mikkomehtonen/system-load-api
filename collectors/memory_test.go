@@ -1,6 +1,9 @@
 package collectors
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 func TestGbConstant(t *testing.T) {
 	if gb != 1024*1024*1024 {
@@ -13,7 +16,7 @@ func TestCollectMemory(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	stats, err := CollectMemory()
+	stats, err := CollectMemory(context.Background())
 	if err != nil {
 		t.Fatalf("CollectMemory() error: %v", err)
 	}

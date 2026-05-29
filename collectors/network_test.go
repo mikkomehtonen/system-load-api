@@ -1,13 +1,16 @@
 package collectors
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 func TestCollectNetwork(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode (1s delta sampling)")
 	}
 
-	stats, err := CollectNetwork()
+	stats, err := CollectNetwork(context.Background())
 	if err != nil {
 		t.Fatalf("CollectNetwork() error: %v", err)
 	}

@@ -1,6 +1,7 @@
 package collectors
 
 import (
+	"context"
 	"math"
 	"testing"
 )
@@ -94,7 +95,7 @@ func TestCollectCPU(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	stats, err := CollectCPU()
+	stats, err := CollectCPU(context.Background())
 	if err != nil {
 		t.Fatalf("CollectCPU() error: %v", err)
 	}

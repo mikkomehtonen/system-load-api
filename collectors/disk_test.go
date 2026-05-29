@@ -1,6 +1,7 @@
 package collectors
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -10,7 +11,7 @@ func TestCollectDisk(t *testing.T) {
 		t.Skip("skipping integration test in short mode (1s delta sampling)")
 	}
 
-	stats, err := CollectDisk()
+	stats, err := CollectDisk(context.Background())
 	if err != nil {
 		t.Fatalf("CollectDisk() error: %v", err)
 	}

@@ -18,18 +18,15 @@ import (
 //go:embed static/*
 var staticFiles embed.FS
 
-func main() {
+func getPort() string {
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
+	return port
+}
 
-	// Serve static UI dashboard
-	staticSub, err := fs.Sub(staticFiles, "static")
-	if err != nil {
-		log.Fatalf("Failed to embed static files: %v", err)
-	}
-
+func buildHandler(static fs.FS) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handlers.Health)
 	mux.HandleFunc("/api/v1/stats", handlers.Stats)
@@ -39,11 +36,22 @@ func main() {
 	mux.HandleFunc("/api/v1/gpu", handlers.GPU)
 	mux.HandleFunc("/api/v1/network", handlers.Network)
 	mux.HandleFunc("/api/v1/host", handlers.Host)
-	mux.Handle("/", http.FileServer(http.FS(staticSub)))
+	mux.Handle("/", http.FileServer(http.FS(static)))
+	return handlers.TimeoutMiddleware(mux)
+}
+
+func main() {
+	port := getPort()
+
+	// Serve static UI dashboard
+	staticSub, err := fs.Sub(staticFiles, "static")
+	if err != nil {
+		log.Fatalf("Failed to embed static files: %v", err)
+	}
 
 	srv := &http.Server{
 		Addr:              ":" + port,
-		Handler:           handlers.TimeoutMiddleware(mux),
+		Handler:           buildHandler(staticSub),
 		ReadHeaderTimeout: 5 * time.Second,
 		WriteTimeout:      12 * time.Second,
 		IdleTimeout:       60 * time.Second,

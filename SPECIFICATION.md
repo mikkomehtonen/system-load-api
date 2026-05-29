@@ -447,7 +447,7 @@ Network and disk I/O metrics require two snapshots separated by 1 second:
 T0: snapshot counters
 Sleep 1s
 T1: snapshot counters
-Delta = T1 - T1 (per interface or aggregate)
+Delta = T1 - T0 (per interface or aggregate)
 ```
 
 This means any endpoint returning network or disk I/O stats has a minimum latency of ~1 second.

@@ -1,16 +1,17 @@
 package collectors
 
 import (
-	"sysload/models"
+	"context"
+	"strings"
 	"time"
 
-	"strings"
-
 	"github.com/shirou/gopsutil/v3/disk"
+
+	"sysload/models"
 )
 
 // CollectDisk gathers partition usage and aggregate I/O rates (delta-sampled over 1s).
-func CollectDisk() (*models.DiskStats, error) {
+func CollectDisk(ctx context.Context) (*models.DiskStats, error) {
 	partitions, err := disk.Partitions(false)
 	if err != nil {
 		return nil, err
@@ -41,7 +42,11 @@ func CollectDisk() (*models.DiskStats, error) {
 		return &models.DiskStats{Partitions: parts}, nil
 	}
 
-	time.Sleep(1 * time.Second)
+	select {
+	case <-ctx.Done():
+		return &models.DiskStats{Partitions: parts}, nil
+	case <-time.After(1 * time.Second):
+	}
 
 	t1, err := disk.IOCounters()
 	if err != nil {
@@ -55,8 +60,12 @@ func CollectDisk() (*models.DiskStats, error) {
 		if !ok {
 			continue
 		}
-		readBytesSec += c1.ReadBytes - c0.ReadBytes
-		writeBytesSec += c1.WriteBytes - c0.WriteBytes
+		if c1.ReadBytes >= c0.ReadBytes {
+			readBytesSec += c1.ReadBytes - c0.ReadBytes
+		}
+		if c1.WriteBytes >= c0.WriteBytes {
+			writeBytesSec += c1.WriteBytes - c0.WriteBytes
+		}
 	}
 
 	return &models.DiskStats{

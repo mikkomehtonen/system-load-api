@@ -1,6 +1,7 @@
 package collectors
 
 import (
+	"context"
 	"sysload/models"
 
 	"github.com/shirou/gopsutil/v3/mem"
@@ -9,7 +10,9 @@ import (
 const gb = 1024 * 1024 * 1024
 
 // CollectMemory gathers RAM and swap usage.
-func CollectMemory() (*models.MemoryStats, error) {
+// The context is accepted for API consistency; gopsutil does not support
+// cancellation of individual system calls.
+func CollectMemory(ctx context.Context) (*models.MemoryStats, error) {
 	v, err := mem.VirtualMemory()
 	if err != nil {
 		return nil, err

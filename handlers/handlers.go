@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"sysload/collectors"
 	"sysload/models"
 	"time"
@@ -19,7 +20,7 @@ func Health(w http.ResponseWriter, r *http.Request) {
 
 // CPU returns CPU metrics.
 func CPU(w http.ResponseWriter, r *http.Request) {
-	stats, err := collectors.CollectCPU()
+	stats, err := collectors.CollectCPU(r.Context())
 	if err != nil {
 		writeError(w, err.Error())
 		return
@@ -32,7 +33,7 @@ func CPU(w http.ResponseWriter, r *http.Request) {
 
 // Memory returns memory metrics.
 func Memory(w http.ResponseWriter, r *http.Request) {
-	stats, err := collectors.CollectMemory()
+	stats, err := collectors.CollectMemory(r.Context())
 	if err != nil {
 		writeError(w, err.Error())
 		return
@@ -45,7 +46,7 @@ func Memory(w http.ResponseWriter, r *http.Request) {
 
 // Disk returns disk metrics.
 func Disk(w http.ResponseWriter, r *http.Request) {
-	stats, err := collectors.CollectDisk()
+	stats, err := collectors.CollectDisk(r.Context())
 	if err != nil {
 		writeError(w, err.Error())
 		return
@@ -58,7 +59,7 @@ func Disk(w http.ResponseWriter, r *http.Request) {
 
 // GPU returns GPU metrics.
 func GPU(w http.ResponseWriter, r *http.Request) {
-	stats := collectors.CollectGPU() // never returns error
+	stats := collectors.CollectGPU(r.Context()) // never returns error
 	writeJSON(w, http.StatusOK, models.GPUResponse{
 		Timestamp: models.Now(),
 		GPU:       stats,
@@ -67,7 +68,7 @@ func GPU(w http.ResponseWriter, r *http.Request) {
 
 // Network returns network metrics.
 func Network(w http.ResponseWriter, r *http.Request) {
-	stats, err := collectors.CollectNetwork()
+	stats, err := collectors.CollectNetwork(r.Context())
 	if err != nil {
 		writeError(w, err.Error())
 		return
@@ -80,7 +81,7 @@ func Network(w http.ResponseWriter, r *http.Request) {
 
 // Host returns host-level system info.
 func Host(w http.ResponseWriter, r *http.Request) {
-	stats, err := collectors.CollectHost()
+	stats, err := collectors.CollectHost(r.Context())
 	if err != nil {
 		writeError(w, err.Error())
 		return
@@ -108,30 +109,30 @@ func Stats(w http.ResponseWriter, r *http.Request) {
 		hostErr   error
 	)
 
-	g, _ := errgroup.WithContext(r.Context())
+	g, ctx := errgroup.WithContext(r.Context())
 
 	g.Go(func() error {
-		cpuStats, cpuErr = collectors.CollectCPU()
+		cpuStats, cpuErr = collectors.CollectCPU(ctx)
 		return cpuErr
 	})
 	g.Go(func() error {
-		memStats, memErr = collectors.CollectMemory()
+		memStats, memErr = collectors.CollectMemory(ctx)
 		return memErr
 	})
 	g.Go(func() error {
-		diskStats, diskErr = collectors.CollectDisk()
+		diskStats, diskErr = collectors.CollectDisk(ctx)
 		return diskErr
 	})
 	g.Go(func() error {
-		gpuStats = collectors.CollectGPU()
+		gpuStats = collectors.CollectGPU(ctx)
 		return nil
 	})
 	g.Go(func() error {
-		netStats, netErr = collectors.CollectNetwork()
+		netStats, netErr = collectors.CollectNetwork(ctx)
 		return netErr
 	})
 	g.Go(func() error {
-		hostStats, hostErr = collectors.CollectHost()
+		hostStats, hostErr = collectors.CollectHost(ctx)
 		return hostErr
 	})
 
@@ -176,16 +177,38 @@ func TimeoutMiddleware(next http.Handler) http.Handler {
 		defer cancel()
 		r = r.WithContext(ctx)
 
+		tw := &timeoutWriter{ResponseWriter: w}
 		done := make(chan struct{})
 		go func() {
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(tw, r)
 			close(done)
 		}()
 
 		select {
 		case <-done:
 		case <-ctx.Done():
-			writeJSON(w, http.StatusGatewayTimeout, models.ErrorResponse{Error: "request timeout"})
+			if !tw.wroteHeader.Load() {
+				writeJSON(tw, http.StatusGatewayTimeout, models.ErrorResponse{Error: "request timeout"})
+			}
+			<-done // wait for handler goroutine to complete before returning
 		}
 	})
+}
+
+type timeoutWriter struct {
+	http.ResponseWriter
+	wroteHeader atomic.Bool
+}
+
+func (tw *timeoutWriter) WriteHeader(code int) {
+	if tw.wroteHeader.CompareAndSwap(false, true) {
+		tw.ResponseWriter.WriteHeader(code)
+	}
+}
+
+func (tw *timeoutWriter) Write(p []byte) (int, error) {
+	if !tw.wroteHeader.Load() {
+		tw.WriteHeader(http.StatusOK)
+	}
+	return tw.ResponseWriter.Write(p)
 }

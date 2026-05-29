@@ -1,6 +1,7 @@
 package collectors
 
 import (
+	"context"
 	"sysload/models"
 
 	"github.com/shirou/gopsutil/v3/cpu"
@@ -8,7 +9,9 @@ import (
 )
 
 // CollectCPU gathers CPU load averages, overall usage, and per-core usage.
-func CollectCPU() (*models.CPUStats, error) {
+// The context is accepted for API consistency; gopsutil does not support
+// cancellation of individual system calls.
+func CollectCPU(ctx context.Context) (*models.CPUStats, error) {
 	avg, err := load.Avg()
 	if err != nil {
 		return nil, err

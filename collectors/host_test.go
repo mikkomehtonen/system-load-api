@@ -1,13 +1,16 @@
 package collectors
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 func TestCollectHost(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	stats, err := CollectHost()
+	stats, err := CollectHost(context.Background())
 	if err != nil {
 		t.Fatalf("CollectHost() error: %v", err)
 	}

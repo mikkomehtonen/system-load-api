@@ -1,14 +1,18 @@
 package collectors
 
 import (
+	"context"
 	"testing"
 )
 
 func TestParseNvidiaSMI_SingleGPU(t *testing.T) {
 	input := []byte("0, NVIDIA GeForce RTX 4090, 85, 24576, 12288, 72, 60\n")
-	devices, err := parseNvidiaSMI(input)
+	devices, warnings, err := parseNvidiaSMI(input)
 	if err != nil {
 		t.Fatalf("parseNvidiaSMI() error: %v", err)
+	}
+	if len(warnings) > 0 {
+		t.Logf("parseNvidiaSMI() warnings: %v", warnings)
 	}
 	if len(devices) != 1 {
 		t.Fatalf("len(devices) = %d, want 1", len(devices))
@@ -43,9 +47,12 @@ func TestParseNvidiaSMI_SingleGPU(t *testing.T) {
 
 func TestParseNvidiaSMI_MultipleGPUs(t *testing.T) {
 	input := []byte("0, NVIDIA A100, 42, 81920, 32768, 65, 45\n1, NVIDIA A100, 78, 81920, 65536, 81, 70\n")
-	devices, err := parseNvidiaSMI(input)
+	devices, warnings, err := parseNvidiaSMI(input)
 	if err != nil {
 		t.Fatalf("parseNvidiaSMI() error: %v", err)
+	}
+	if len(warnings) > 0 {
+		t.Logf("parseNvidiaSMI() warnings: %v", warnings)
 	}
 	if len(devices) != 2 {
 		t.Fatalf("len(devices) = %d, want 2", len(devices))
@@ -63,14 +70,14 @@ func TestParseNvidiaSMI_MultipleGPUs(t *testing.T) {
 }
 
 func TestParseNvidiaSMI_EmptyInput(t *testing.T) {
-	_, err := parseNvidiaSMI([]byte(""))
+	_, _, err := parseNvidiaSMI([]byte(""))
 	if err == nil {
 		t.Fatal("parseNvidiaSMI('') should return error for no devices")
 	}
 }
 
 func TestParseNvidiaSMI_OnlyWhitespace(t *testing.T) {
-	_, err := parseNvidiaSMI([]byte("\n\n"))
+	_, _, err := parseNvidiaSMI([]byte("\n\n"))
 	if err == nil {
 		t.Fatal("parseNvidiaSMI should return error when no devices parsed")
 	}
@@ -78,7 +85,7 @@ func TestParseNvidiaSMI_OnlyWhitespace(t *testing.T) {
 
 func TestParseNvidiaSMI_TruncatedRow(t *testing.T) {
 	input := []byte("0, NVIDIA RTX 4090, 85\n")
-	devices, err := parseNvidiaSMI(input)
+	devices, _, err := parseNvidiaSMI(input)
 	if err == nil {
 		t.Fatalf("expected error for truncated row, got devices: %v", devices)
 	}
@@ -86,9 +93,12 @@ func TestParseNvidiaSMI_TruncatedRow(t *testing.T) {
 
 func TestParseNvidiaSMI_MalformedNumber(t *testing.T) {
 	input := []byte("0, NVIDIA RTX 4090, N/A, 24576, 12288, 72, 55\n")
-	devices, err := parseNvidiaSMI(input)
+	devices, warnings, err := parseNvidiaSMI(input)
 	if err != nil {
 		t.Fatalf("parseNvidiaSMI() with N/A utilization error: %v", err)
+	}
+	if len(warnings) == 0 {
+		t.Error("expected warnings for N/A utilization, got none")
 	}
 	if len(devices) != 1 {
 		t.Fatalf("len(devices) = %d, want 1", len(devices))
@@ -100,9 +110,12 @@ func TestParseNvidiaSMI_MalformedNumber(t *testing.T) {
 
 func TestParseNvidiaSMI_FractionalValues(t *testing.T) {
 	input := []byte("0, NVIDIA RTX 3080, 33.3, 10240, 5120.5, 67.8, 42.5\n")
-	devices, err := parseNvidiaSMI(input)
+	devices, warnings, err := parseNvidiaSMI(input)
 	if err != nil {
 		t.Fatalf("parseNvidiaSMI() error: %v", err)
+	}
+	if len(warnings) > 0 {
+		t.Logf("parseNvidiaSMI() warnings: %v", warnings)
 	}
 	if devices[0].UtilizationPercent != 33.3 {
 		t.Errorf("UtilizationPercent = %v, want 33.3", devices[0].UtilizationPercent)
@@ -120,9 +133,12 @@ func TestParseNvidiaSMI_FractionalValues(t *testing.T) {
 
 func TestParseNvidiaSMI_NoFanSpeedColumn(t *testing.T) {
 	input := []byte("0, NVIDIA RTX 4090, 85, 24576, 12288, 72\n")
-	devices, err := parseNvidiaSMI(input)
+	devices, warnings, err := parseNvidiaSMI(input)
 	if err != nil {
 		t.Fatalf("parseNvidiaSMI() error: %v", err)
+	}
+	if len(warnings) > 0 {
+		t.Logf("parseNvidiaSMI() warnings: %v", warnings)
 	}
 	if len(devices) != 1 {
 		t.Fatalf("len(devices) = %d, want 1", len(devices))
@@ -134,9 +150,12 @@ func TestParseNvidiaSMI_NoFanSpeedColumn(t *testing.T) {
 
 func TestParseNvidiaSMI_FanSpeedNA(t *testing.T) {
 	input := []byte("0, NVIDIA A100, 42, 81920, 32768, 65, N/A\n")
-	devices, err := parseNvidiaSMI(input)
+	devices, warnings, err := parseNvidiaSMI(input)
 	if err != nil {
 		t.Fatalf("parseNvidiaSMI() error: %v", err)
+	}
+	if len(warnings) == 0 {
+		t.Error("expected warnings for N/A fan speed, got none")
 	}
 	if len(devices) != 1 {
 		t.Fatalf("len(devices) = %d, want 1", len(devices))
@@ -147,7 +166,7 @@ func TestParseNvidiaSMI_FanSpeedNA(t *testing.T) {
 }
 
 func TestCollectGPU_NvidiaSMINotFound(t *testing.T) {
-	stats := CollectGPU()
+	stats := CollectGPU(context.Background())
 	if stats == nil {
 		t.Fatal("CollectGPU() returned nil")
 	}
@@ -162,7 +181,7 @@ func TestCollectGPU_NvidiaSMINotFound(t *testing.T) {
 }
 
 func TestCollectGPU_AvailableHasDevices(t *testing.T) {
-	stats := CollectGPU()
+	stats := CollectGPU(context.Background())
 	if stats == nil {
 		t.Fatal("CollectGPU() returned nil")
 	}
