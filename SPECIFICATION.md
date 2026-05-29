@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-The System Load API is a lightweight Go HTTP service that exposes real-time system resource metrics as JSON. It collects CPU, memory, disk, GPU, and network statistics and serves them through RESTful endpoints. The service uses only the Go standard library for HTTP routing and relies on `gopsutil/v3` and `nvidia-smi` for system metrics. An embedded dark terminal dashboard UI is served at `/` for browser-based monitoring.
+The System Load API is a lightweight Go HTTP service that exposes real-time system resource metrics as JSON. It collects CPU, memory, disk, GPU, network, and host statistics and serves them through RESTful endpoints. The service uses only the Go standard library for HTTP routing and relies on `gopsutil/v3` and `nvidia-smi` for system metrics. An embedded dark terminal dashboard UI is served at `/` for browser-based monitoring.
 
 ### 1.1 Goals
 
@@ -59,6 +59,7 @@ collectors/          # Metric collection functions (one per resource type)
   disk.go            # Partition usage + I/O rates (1s delta)
   gpu.go             # nvidia-smi parsing (utilization, VRAM, temperature, fan speed)
   network.go         # Per-interface byte rates (1s delta)
+  host.go            # Host-level system info (uptime)
   rounding.go        # Shared rounding helpers
 handlers/            # HTTP handlers and middleware
   handlers.go        # All endpoint handlers + TimeoutMiddleware
@@ -81,7 +82,8 @@ Handler (individual or Stats)
     ├──► CollectMemory() ──► gopsutil/mem
     ├──► CollectDisk()   ──► gopsutil/disk (1s delta for I/O)
     ├──► CollectGPU()    ──► exec.Command("nvidia-smi")
-    └──► CollectNetwork()──► gopsutil/net (1s delta)
+    ├──► CollectNetwork()──► gopsutil/net (1s delta)
+    └──► CollectHost()   ──► gopsutil/host
     │
     ▼
 JSON Serialization → Response
@@ -89,7 +91,7 @@ JSON Serialization → Response
 
 ### 3.3 Concurrency Model
 
-The `/api/v1/stats` endpoint uses `errgroup.WithContext()` to run all five collectors concurrently. Partial failures are tolerated — if at least one collector succeeds, a 200 response is returned with available metrics and `null` for failed sections. Only when **all** collectors fail does the endpoint return HTTP 500.
+The `/api/v1/stats` endpoint uses `errgroup.WithContext()` to run all six collectors concurrently. Partial failures are tolerated — if at least one collector succeeds, a 200 response is returned with available metrics and `null` for failed sections. Only when **all** collectors fail does the endpoint return HTTP 500.
 
 The GPU collector never propagates errors to the handler; it always returns a `GPUStats` struct with `Available: false` and an error message on failure.
 
@@ -134,7 +136,8 @@ GET /api/v1/stats
   "memory": { ... },
   "disk": { ... },
   "gpu": { ... },
-  "network": { ... }
+  "network": { ... },
+  "host": { ... }
 }
 ```
 
@@ -356,6 +359,30 @@ GET /api/v1/network
 | `bytes_sent_sec` | uint64 | Outbound bytes per second (1s delta) |
 | `bytes_recv_sec` | uint64 | Inbound bytes per second (1s delta) |
 
+#### 4.2.8 Host Metrics
+
+```
+GET /api/v1/host
+```
+
+**Latency:** Instant
+
+**Response (200):**
+```json
+{
+  "timestamp": "2026-05-25T10:30:00Z",
+  "host": {
+    "uptime_seconds": 3600
+  }
+}
+```
+
+**Fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `uptime_seconds` | uint64 | System uptime in seconds |
+
 ---
 
 ## 5. Dashboard UI
@@ -379,6 +406,7 @@ The API binary embeds a single-page dashboard UI served at `/`. The UI is a vani
 | Disk | Partition table (device, mount, type, size, usage bar), I/O read/write rates |
 | GPU | Per-device utilization, VRAM usage, temperature, fan speed bars; graceful "unavailable" state |
 | Network | Per-interface RX/TX byte rates |
+| Host | Uptime displayed in the header |
 
 ### 5.4 Color Thresholds
 
@@ -450,6 +478,7 @@ A custom `TimeoutMiddleware` wraps all routes:
 | Disk | Propagates error to handler → HTTP 500 (partitions may be partial) |
 | GPU | **Never propagates** — returns `Available: false` with error message |
 | Network | Propagates error to handler → HTTP 500 |
+| Host | Propagates error to handler → HTTP 500 |
 
 In `/api/v1/stats`, partial failures yield 200 with `null` sections. Only total failure yields 500.
 
@@ -479,7 +508,7 @@ go fmt ./...               # Code formatting
 | Package | Coverage Areas |
 |---|---|
 | `collectors` | Rounding edge cases, nvidia-smi CSV parsing, collector integration calls |
-| `handlers` | All 7 endpoints via `httptest`, JSON helpers, error aggregation |
+| `handlers` | All 8 endpoints via `httptest`, JSON helpers, error aggregation |
 | `models` | RFC 3339/UTC timestamp validation, struct construction |
 
 ---
@@ -495,6 +524,7 @@ go fmt ./...               # Code formatting
 | GET | `/api/v1/disk` | ~1s | No | Partition usage + I/O rates |
 | GET | `/api/v1/gpu` | Instant | Optional | GPU metrics (graceful fallback) |
 | GET | `/api/v1/network` | ~1s | No | Per-interface byte rates |
+| GET | `/api/v1/host` | Instant | No | Host uptime |
 
 ---
 
@@ -511,6 +541,7 @@ go fmt ./...               # Code formatting
 | `/api/v1/disk` | `DiskResponse` |
 | `/api/v1/gpu` | `GPUResponse` |
 | `/api/v1/network` | `NetworkResponse` |
+| `/api/v1/host` | `HostResponse` |
 | Any (error) | `ErrorResponse` |
 
 ### 9.2 Nested Types
@@ -526,3 +557,5 @@ go fmt ./...               # Code formatting
 | `GPUDevice` | `GPUStats` | Per-GPU info |
 | `NetworkStats` | `NetworkResponse`, `StatsResponse` | Network metrics |
 | `NetworkInterface` | `NetworkStats` | Per-interface rates |
+| `HostStats` | `HostResponse`, `StatsResponse` | Host metrics |
+| `HostResponse` | — | Host endpoint response |

@@ -10,6 +10,7 @@ type StatsResponse struct {
 	Disk      *DiskStats    `json:"disk,omitempty"`
 	GPU       *GPUStats     `json:"gpu,omitempty"`
 	Network   *NetworkStats `json:"network,omitempty"`
+	Host      *HostStats    `json:"host,omitempty"`
 }
 
 // CPUResponse is the response for /api/v1/cpu.
@@ -40,6 +41,12 @@ type GPUResponse struct {
 type NetworkResponse struct {
 	Timestamp string        `json:"timestamp"`
 	Network   *NetworkStats `json:"network"`
+}
+
+// HostResponse is the response for /api/v1/host.
+type HostResponse struct {
+	Timestamp string     `json:"timestamp"`
+	Host      *HostStats `json:"host"`
 }
 
 // ErrorResponse is returned on failure.
@@ -119,6 +126,11 @@ type NetworkInterface struct {
 	Name         string `json:"name"`
 	BytesSentSec uint64 `json:"bytes_sent_sec"`
 	BytesRecvSec uint64 `json:"bytes_recv_sec"`
+}
+
+// HostStats holds host-level system info.
+type HostStats struct {
+	UptimeSeconds uint64 `json:"uptime_seconds"`
 }
 
 // Now returns the current timestamp in RFC 3339 format.

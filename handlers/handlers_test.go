@@ -156,6 +156,36 @@ func TestDisk(t *testing.T) {
 	}
 }
 
+func TestHost(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/host", nil)
+	w := httptest.NewRecorder()
+
+	Host(w, req)
+
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var body map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+
+	if _, ok := body["timestamp"]; !ok {
+		t.Error("response missing 'timestamp' field")
+	}
+	if _, ok := body["host"]; !ok {
+		t.Error("response missing 'host' field")
+	}
+}
+
 func TestNetwork(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode (1s delta sampling)")
@@ -225,6 +255,9 @@ func TestStats(t *testing.T) {
 	}
 	if _, ok := body["network"]; !ok {
 		t.Error("response missing 'network' field")
+	}
+	if _, ok := body["host"]; !ok {
+		t.Error("response missing 'host' field")
 	}
 }
 

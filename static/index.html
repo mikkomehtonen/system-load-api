@@ -87,6 +87,12 @@ header h1 span {
 #status.error .dot { background: var(--err); animation: none; }
 #status.loading .dot { background: var(--warn); animation: pulse 0.6s ease-in-out infinite; }
 
+#host-meta {
+  font-size: 0.8rem;
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
+}
+
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
@@ -339,6 +345,9 @@ section-divider {
 
 <header>
   <h1>sysload <span>/api/v1/stats</span></h1>
+  <div id="host-meta">
+    <span id="uptime">--</span>
+  </div>
   <div id="status" class="loading">
     <span class="dot"></span>
     <span id="status-text">connecting...</span>
@@ -465,6 +474,19 @@ section-divider {
     return l.toFixed(2);
   }
 
+  function fmtUptime(sec) {
+    var s = Math.floor(sec % 60);
+    var m = Math.floor((sec / 60) % 60);
+    var h = Math.floor((sec / 3600) % 24);
+    var d = Math.floor(sec / 86400);
+    var parts = [];
+    if (d > 0) parts.push(d + 'd');
+    if (h > 0 || d > 0) parts.push(h + 'h');
+    if (m > 0 || h > 0 || d > 0) parts.push(m + 'm');
+    parts.push(s + 's');
+    return parts.join(' ');
+  }
+
   function fmtTimestamp(ts) {
     try {
       const d = new Date(ts);
@@ -473,6 +495,16 @@ section-divider {
   }
 
   function el(id) { return document.getElementById(id); }
+
+  // --- Host ---
+  function renderHost(data) {
+    var elUptime = document.getElementById('uptime');
+    if (!data) {
+      elUptime.textContent = '--';
+      return;
+    }
+    elUptime.textContent = 'uptime: ' + fmtUptime(data.uptime_seconds || 0);
+  }
 
   // --- CPU ---
   function renderCPU(data) {
@@ -686,6 +718,7 @@ section-divider {
 
         if (data.timestamp) tsEl.textContent = 'last updated: ' + fmtTimestamp(data.timestamp);
 
+        renderHost(data.host);
         renderCPU(data.cpu);
         renderMemory(data.memory);
         renderDisk(data.disk);

@@ -78,6 +78,19 @@ func Network(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Host returns host-level system info.
+func Host(w http.ResponseWriter, r *http.Request) {
+	stats, err := collectors.CollectHost()
+	if err != nil {
+		writeError(w, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, models.HostResponse{
+		Timestamp: models.Now(),
+		Host:      stats,
+	})
+}
+
 // Stats returns all metrics concurrently. Partial results are returned if
 // some collectors fail; only a total failure yields a 500 error.
 func Stats(w http.ResponseWriter, r *http.Request) {
@@ -87,10 +100,12 @@ func Stats(w http.ResponseWriter, r *http.Request) {
 		diskStats *models.DiskStats
 		gpuStats  *models.GPUStats
 		netStats  *models.NetworkStats
+		hostStats *models.HostStats
 		cpuErr    error
 		memErr    error
 		diskErr   error
 		netErr    error
+		hostErr   error
 	)
 
 	g, _ := errgroup.WithContext(r.Context())
@@ -115,12 +130,16 @@ func Stats(w http.ResponseWriter, r *http.Request) {
 		netStats, netErr = collectors.CollectNetwork()
 		return netErr
 	})
+	g.Go(func() error {
+		hostStats, hostErr = collectors.CollectHost()
+		return hostErr
+	})
 
 	_ = g.Wait()
 
-	if cpuStats == nil && memStats == nil && diskStats == nil && gpuStats == nil && netStats == nil {
+	if cpuStats == nil && memStats == nil && diskStats == nil && gpuStats == nil && netStats == nil && hostStats == nil {
 		var parts []string
-		for _, e := range []error{cpuErr, memErr, diskErr, netErr} {
+		for _, e := range []error{cpuErr, memErr, diskErr, netErr, hostErr} {
 			if e != nil {
 				parts = append(parts, e.Error())
 			}
@@ -136,6 +155,7 @@ func Stats(w http.ResponseWriter, r *http.Request) {
 		Disk:      diskStats,
 		GPU:       gpuStats,
 		Network:   netStats,
+		Host:      hostStats,
 	})
 }
 

@@ -24,6 +24,7 @@ Open `http://localhost:8080` in a browser to see the real-time dashboard. It aut
 - **Disk** — partition table with usage bars, I/O read/write rates
 - **GPU** — utilization, VRAM, temperature, fan speed per device (graceful fallback if unavailable)
 - **Network** — per-interface RX/TX byte rates
+- **Host** — system uptime (human-readable header display)
 
 The UI is a single vanilla HTML file embedded in the binary — no external assets or build step needed.
 
@@ -38,6 +39,7 @@ The UI is a single vanilla HTML file embedded in the binary — no external asse
 | GET | `/api/v1/disk` | Disk metrics only |
 | GET | `/api/v1/gpu` | GPU metrics only |
 | GET | `/api/v1/network` | Network metrics only |
+| GET | `/api/v1/host` | Host info (uptime) only |
 
 ## Response Examples
 
@@ -102,6 +104,9 @@ The UI is a single vanilla HTML file embedded in the binary — no external asse
         "bytes_recv_sec": 2097152
       }
     ]
+  },
+  "host": {
+    "uptime_seconds": 3600
   }
 }
 ```
@@ -164,8 +169,8 @@ The test suite covers unit tests for pure functions and parsing logic, plus inte
 
 | Package | Focus |
 |---------|-------|
-| `collectors` | `roundTo1`/`roundTo2`/`roundSlice` edge cases, `parseNvidiaSMI` with mock CSV input, `CollectCPU`/`CollectMemory`/`CollectDisk`/`CollectNetwork`/`CollectGPU` integration |
-| `handlers` | All 7 endpoints via `httptest`, `collectErrors`, `writeJSON`/`writeError` helpers |
+| `collectors` | `roundTo1`/`roundTo2`/`roundSlice` edge cases, `parseNvidiaSMI` with mock CSV input, `CollectCPU`/`CollectMemory`/`CollectDisk`/`CollectNetwork`/`CollectGPU`/`CollectHost` integration |
+| `handlers` | All 8 endpoints via `httptest`, `collectErrors`, `writeJSON`/`writeError` helpers |
 | `models` | `Now()` RFC 3339/UTC validation, struct field construction |
 
 ### Short Mode
