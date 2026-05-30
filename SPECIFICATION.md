@@ -164,7 +164,8 @@ GET /api/v1/cpu
     "load_avg_15min": 0.76,
     "usage_percent": 34.5,
     "core_count": 8,
-    "per_core_percent": [45.2, 30.1, 28.7, 52.0, 20.3, 15.8, 40.1, 44.9]
+    "per_core_percent": [45.2, 30.1, 28.7, 52.0, 20.3, 15.8, 40.1, 44.9],
+    "temperature_c": 48.0
   }
 }
 ```
@@ -179,6 +180,7 @@ GET /api/v1/cpu
 | `usage_percent` | float64 | Overall CPU usage percentage (rounded to 1 decimal) |
 | `core_count` | int | Number of logical CPU cores |
 | `per_core_percent` | []float64 | Per-core usage percentages (rounded to 1 decimal) |
+| `temperature_c` | float64 or null | CPU package/die temperature in Celsius (rounded to 1 decimal). Prefers package-level sensor, falls back to die, then highest core. `null` when sensors are unavailable, all readings are zero, or an error occurs. |
 
 #### 4.2.4 Memory Metrics
 
@@ -473,7 +475,7 @@ A custom `TimeoutMiddleware` wraps all routes:
 
 | Collector | Error Behavior |
 |---|---|
-| CPU | Propagates error to handler → HTTP 500 |
+| CPU | Propagates error to handler → HTTP 500. Temperature sensor errors are silently swallowed — `temperature_c` will be `null`. |
 | Memory | Propagates error to handler → HTTP 500 |
 | Disk | Propagates error to handler → HTTP 500 (partitions may be partial) |
 | GPU | **Never propagates** — returns `Available: false` with error message |

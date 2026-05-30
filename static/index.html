@@ -368,6 +368,11 @@ section-divider {
         <div class="bar-track"><div class="bar-fill" id="cpu-bar" style="width:0%"></div></div>
         <span class="bar-pct" id="cpu-pct">--%</span>
       </div>
+      <div class="bar-row" id="cpu-temp-row">
+        <span class="bar-label">temp</span>
+        <div class="bar-track"><div class="bar-fill" id="cpu-temp-bar" style="width:0%"></div></div>
+        <span class="bar-pct" id="cpu-temp-pct">--</span>
+      </div>
     </div>
     <div class="core-grid" id="cpu-cores-grid"></div>
   </section>
@@ -523,6 +528,23 @@ section-divider {
     el('cpu-bar').className = 'bar-fill ' + bc;
     el('cpu-pct').textContent = usage.toFixed(0) + '%';
     el('cpu-pct').className = 'bar-pct ' + bc;
+
+    if (data.temperature_c != null) {
+      var tempC = data.temperature_c;
+      var tempBarPct = Math.min(tempC, 100);
+      var tempC_class = '';
+      var tempDisplay = '';
+      if (tempC >= 90) { tempC_class = 'err'; tempDisplay = 'CRIT'; }
+      else if (tempC >= 75) { tempC_class = 'warn'; tempDisplay = 'WARN'; }
+      else { tempDisplay = 'OK'; }
+      el('cpu-temp-bar').style.width = tempBarPct + '%';
+      el('cpu-temp-bar').className = 'bar-fill ' + tempC_class;
+      el('cpu-temp-pct').textContent = tempC.toFixed(1) + 'C ' + tempDisplay;
+      el('cpu-temp-pct').className = 'bar-pct ' + tempC_class;
+      el('cpu-temp-row').style.display = '';
+    } else {
+      el('cpu-temp-row').style.display = 'none';
+    }
 
     var grid = el('cpu-cores-grid');
     grid.innerHTML = '';

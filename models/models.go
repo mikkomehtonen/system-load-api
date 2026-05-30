@@ -62,6 +62,7 @@ type CPUStats struct {
 	UsagePercent   float64   `json:"usage_percent"`
 	CoreCount      int       `json:"core_count"`
 	PerCorePercent []float64 `json:"per_core_percent"`
+	TemperatureC   *float64  `json:"temperature_c"`
 }
 
 // MemoryStats holds memory metrics.

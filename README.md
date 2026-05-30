@@ -1,6 +1,6 @@
 # System Load API
 
-A Go HTTP API that returns real-time system load information as JSON, including CPU, memory, disk, GPU, and network metrics. Includes a built-in dark terminal dashboard UI.
+A Go HTTP API that returns real-time system load information as JSON, including CPU (with temperature), memory, disk, GPU, and network metrics. Includes a built-in dark terminal dashboard UI.
 
 ## Quick Start
 
@@ -19,7 +19,7 @@ PORT=9090 ./sysload
 
 Open `http://localhost:8080` in a browser to see the real-time dashboard. It auto-refreshes every 5 seconds and displays:
 
-- **CPU** — overall usage, load averages, per-core bars
+- **CPU** — overall usage, load averages, per-core bars, package temperature
 - **Memory** — RAM and swap usage with progress bars
 - **Disk** — partition table with usage bars, I/O read/write rates
 - **GPU** — utilization, VRAM, temperature, fan speed per device (graceful fallback if unavailable)
@@ -54,7 +54,8 @@ The UI is a single vanilla HTML file embedded in the binary — no external asse
     "load_avg_15min": 0.76,
     "usage_percent": 34.5,
     "core_count": 8,
-    "per_core_percent": [45.2, 30.1, 28.7, 52.0, 20.3, 15.8, 40.1, 44.9]
+    "per_core_percent": [45.2, 30.1, 28.7, 52.0, 20.3, 15.8, 40.1, 44.9],
+    "temperature_c": 48.0
   },
   "memory": {
     "total_gb": 15.88,
@@ -149,6 +150,7 @@ On failure, the API returns HTTP 500:
 
 - **Network and disk I/O rates** require 1-second delta sampling (snapshot at T0 and T1, compute delta). Endpoints returning these stats (`/network`, `/disk`, `/stats`) have ~1s latency.
 - **GPU** metrics require `nvidia-smi` on the host. If unavailable, the endpoint still returns immediately with `available: false`.
+- **CPU temperature** is gathered from system sensors via `gopsutil`. Prefers package-level readings, falls back to die then highest core temp. Returns `null` when sensors are unavailable.
 
 ## Development
 
