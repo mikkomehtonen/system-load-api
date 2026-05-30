@@ -23,7 +23,7 @@ Open `http://localhost:8080` in a browser to see the real-time dashboard. It aut
 - **Memory** — RAM and swap usage with progress bars
 - **Disk** — partition table with usage bars, I/O read/write rates
 - **GPU** — utilization, VRAM, temperature, fan speed per device (graceful fallback if unavailable)
-- **Network** — per-interface RX/TX byte rates
+- **Network** — per-interface RX/TX byte rates (virtual interfaces filtered: lo, docker0, br-*, veth*)
 - **Host** — system uptime (human-readable header display)
 
 The UI is a single vanilla HTML file embedded in the binary — no external assets or build step needed.
@@ -151,6 +151,15 @@ On failure, the API returns HTTP 500:
 - **Network and disk I/O rates** require 1-second delta sampling (snapshot at T0 and T1, compute delta). Endpoints returning these stats (`/network`, `/disk`, `/stats`) have ~1s latency.
 - **GPU** metrics require `nvidia-smi` on the host. If unavailable, the endpoint still returns immediately with `available: false`.
 - **CPU temperature** is gathered from system sensors via `gopsutil`. Prefers package-level readings, falls back to die then highest core temp. Returns `null` when sensors are unavailable.
+
+## Network Interface Filtering
+
+The network collector excludes virtual and loopback interfaces to keep metrics focused on physical networks. Filtered interfaces:
+
+- `lo` — loopback
+- `docker0` — Docker bridge
+- `br-*` — bridge interfaces
+- `veth*` — virtual ethernet pairs (containers)
 
 ## Development
 

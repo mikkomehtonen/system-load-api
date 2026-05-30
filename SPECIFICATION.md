@@ -361,6 +361,9 @@ GET /api/v1/network
 | `bytes_sent_sec` | uint64 | Outbound bytes per second (1s delta) |
 | `bytes_recv_sec` | uint64 | Inbound bytes per second (1s delta) |
 
+**Notes:**
+- Virtual interfaces are filtered out: `lo`, `docker0`, `br-*`, and `veth*`
+
 #### 4.2.8 Host Metrics
 
 ```
